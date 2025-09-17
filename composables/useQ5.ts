@@ -32,15 +32,40 @@ export const useQ5 = () => {
     const now = Date.now()
     console.log('start to fetch detail with id', id, 'at', now);
     return new Promise<{ id: string, name: string, ans: number }>((resolve, reject) => {
-      setTimeout(() => {
-        resolve({ id, name: `John Doe ${id}`, ans: mockHeavy(+id % 5 + 37) })
+      setTimeout(async () => {
+        // Use Web Worker for heavy calculation to prevent UI blocking
+        const ans = await calculateHeavy(+id % 5 + 37)
+        resolve({ id, name: `John Doe ${id}`, ans })
         console.log('fetch detail with id', id, 'done at', Date.now() - now);
       }, 3000 * Math.random())
     })
   }
 
   /**
-   * Mock heavy function to simulate the heavy calculation
+   * Calculate heavy computation using Web Worker to prevent UI blocking
+   */
+  const calculateHeavy = (n: number): Promise<number> => {
+    return new Promise((resolve, reject) => {
+      const worker = new Worker('/heavy-calculation-worker.js')
+      
+      worker.postMessage({ id: Date.now(), n })
+      
+      worker.onmessage = (event) => {
+        const { result } = event.data
+        worker.terminate()
+        resolve(result)
+      }
+      
+      worker.onerror = (error) => {
+        worker.terminate()
+        reject(error)
+      }
+    })
+  }
+
+  /**
+   * Original mock heavy function (kept for reference)
+   * This is now handled by Web Worker to prevent UI blocking
    */
   const mockHeavy = (n: number): number => {
     if (n <= 1) return n;
@@ -50,6 +75,7 @@ export const useQ5 = () => {
   return {
     fetchList,
     fetchDetail,
-    mockHeavy
+    mockHeavy,
+    calculateHeavy
   }
 }
