@@ -31,9 +31,25 @@ function getData() {
  * 請設計一個 cache 函數，在 5 秒內重複觸發 getData 函數時，只會回傳上一次的結果
  * Please design a cache function, which can cache the result of the function in 5 seconds
  */
-function cache(fn, time = 5000) {
-}
+function cache(fn: () => number, time = 5000) {
+  let cachedResult: number = 0;
+  let cachedTime: number = 0;
 
+  // 利用 closure 紀錄上次執行時間與結果
+  return function () {
+    const now = Date.now();
+
+    console.log("now", now, "cachedTime", cachedTime, "time", now - cachedTime);
+
+    // 如果距離上次執行時間超過 time，則重新執行 fn 並更新快取時間
+    if (now - cachedTime >= time) {
+      cachedResult = fn();
+      cachedTime = now;
+    }
+
+    return cachedResult;
+  };
+}
 
 /**
  * number: 隨機數 Random number
@@ -46,8 +62,12 @@ const data = ref({ number: 0, count: 0 });
  * Please design a run function, which can execute the cache function once per second, and write the result to data
  */
 function run() {
+  const cachedGetData = cache(getData, 5000);
+  setInterval(() => {
+    data.value.number = cachedGetData();
+    data.value.count += 1;
+  }, 1000);
 }
-
 </script>
 
 <style>
