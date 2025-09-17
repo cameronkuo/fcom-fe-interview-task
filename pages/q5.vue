@@ -29,14 +29,26 @@
     </ul>
 
     <div class="flex gap-2 mt-4">
-      <button @click="run()" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
-        Run (No Batching)
+      <button
+        @click="run()"
+        :disabled="isRunning"
+        class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {{ isRunning ? 'Running...' : 'Run (No Batching)' }}
       </button>
-      <button @click="runWithBatch()" class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">
-        Run (With Batching)
+      <button
+        @click="runWithBatch()"
+        :disabled="isBatchRunning"
+        class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {{ isBatchRunning ? `Batch ${batchProgress}` : 'Run (With Batching)' }}
       </button>
-      <button @click="runOneByOne()" class="px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600">
-        Run (One by One)
+      <button
+        @click="runOneByOne()"
+        :disabled="isOneByOneRunning"
+        class="px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {{ isOneByOneRunning ? `Progress ${oneByOneProgress}` : 'Run (One by One)' }}
       </button>
     </div>
   </div>
@@ -98,6 +110,13 @@ defineOptions({
 
 const data = ref<{ id: string; name: string; ans: number }[]>([]);
 
+// Progress tracking states
+const isRunning = ref(false);
+const isBatchRunning = ref(false);
+const isOneByOneRunning = ref(false);
+const batchProgress = ref('');
+const oneByOneProgress = ref('');
+
 const { fetchList, fetchDetail } = useQ5();
 
 /**
@@ -106,7 +125,10 @@ const { fetchList, fetchDetail } = useQ5();
  * All requests are fired simultaneously for maximum speed
  */
 const run = async () => {
+  if (isRunning.value) return;
+
   try {
+    isRunning.value = true;
     // Reset data
     data.value = [];
 
@@ -129,6 +151,8 @@ const run = async () => {
     console.log("All data processed successfully (no batching)");
   } catch (error) {
     console.error("Error in run function:", error);
+  } finally {
+    isRunning.value = false;
   }
 };
 
@@ -138,7 +162,11 @@ const run = async () => {
  * Slowest but uses minimal resources and shows real-time progress
  */
 const runOneByOne = async () => {
+  if (isOneByOneRunning.value) return;
+
   try {
+    isOneByOneRunning.value = true;
+    oneByOneProgress.value = '';
     // Reset data
     data.value = [];
 
@@ -151,6 +179,7 @@ const runOneByOne = async () => {
     console.log("Processing items one by one...");
     for (let i = 0; i < list.length; i++) {
       const item = list[i];
+      oneByOneProgress.value = `${i + 1}/${list.length}`;
       console.log(`Processing item ${i + 1}/${list.length}: ${item!.id}`);
 
       const detail = await fetchDetail(item!.id);
@@ -162,6 +191,9 @@ const runOneByOne = async () => {
     console.log("All data processed successfully (one by one)");
   } catch (error) {
     console.error("Error in runOneByOne function:", error);
+  } finally {
+    isOneByOneRunning.value = false;
+    oneByOneProgress.value = '';
   }
 };
 
@@ -172,7 +204,11 @@ const runOneByOne = async () => {
  * 3. Updates UI progressively as data becomes available
  */
 const runWithBatch = async () => {
+  if (isBatchRunning.value) return;
+
   try {
+    isBatchRunning.value = true;
+    batchProgress.value = '';
     // Reset data
     data.value = [];
 
@@ -185,10 +221,14 @@ const runWithBatch = async () => {
     // Limit concurrent requests to prevent overwhelming the system
     const CONCURRENCY_LIMIT = 3;
     const results: { id: string; name: string; ans: number }[] = [];
+    const totalBatches = Math.ceil(list.length / CONCURRENCY_LIMIT);
 
     // Process items in batches to control concurrency
     for (let i = 0; i < list.length; i += CONCURRENCY_LIMIT) {
       const batch = list.slice(i, i + CONCURRENCY_LIMIT);
+      const currentBatch = Math.floor(i / CONCURRENCY_LIMIT) + 1;
+
+      batchProgress.value = `${currentBatch}/${totalBatches}`;
 
       // Process current batch concurrently
       const batchPromises = batch.map(async (item) => {
@@ -203,14 +243,15 @@ const runWithBatch = async () => {
       results.push(...batchResults);
       data.value = [...results];
 
-      console.log(
-        `Processed batch ${Math.floor(i / CONCURRENCY_LIMIT) + 1}/${Math.ceil(list.length / CONCURRENCY_LIMIT)}`
-      );
+      console.log(`Processed batch ${currentBatch}/${totalBatches}`);
     }
 
     console.log("All data processed successfully (with batching)");
   } catch (error) {
     console.error("Error in runWithBatch function:", error);
+  } finally {
+    isBatchRunning.value = false;
+    batchProgress.value = '';
   }
 };
 </script>
